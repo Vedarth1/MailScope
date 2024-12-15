@@ -5,6 +5,9 @@ from src.routes import api
 from dotenv import load_dotenv
 import os
 
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+
 load_dotenv()
 
 def create_app(config):
