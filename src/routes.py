@@ -75,55 +75,63 @@ def logout():
 def index():
     return "Welcome to the Email Integration Platform! Go to /login to connect your email."
 
-@api.route("/fetch-emails")
+@api.route("/fetch-emails", methods=["GET"])
 def fetch_emails():
     try:
         if "tokens" not in session:
             return jsonify({"error": "User not authenticated. Please login first."}), 401
 
-        # Load credentials from session
         tokens = session["tokens"]
         credentials = build_credentials_from_session(tokens)
 
-        # Initialize Gmail API service
         service = build('gmail', 'v1', credentials=credentials)
 
-        messages = []
+        keyword = request.args.get("keyword", "")
+        subject = request.args.get("subject", "")
+        from_email = request.args.get("from", "")
+        after_date = request.args.get("after", "")
+        before_date = request.args.get("before", "")
+
+        query = ""
+        if keyword:
+            query += f"{keyword} "
+        if subject:
+            query += f"subject:{subject} "
+        if from_email:
+            query += f"from:{from_email} "
+        if after_date:
+            query += f"after:{after_date} "
+        if before_date:
+            query += f"before:{before_date}"
+
         response = service.users().messages().list(
-            userId='me', 
-            maxResults=1, 
-            q='',
+            userId="me",
+            maxResults=10,
+            q=query.strip(),
             fields="messages/id"
         ).execute()
 
-        print(response)
+        if "messages" not in response or len(response["messages"]) == 0:
+            return jsonify({"message": "No emails found with the provided filters."})
 
-        if 'messages' not in response or len(response['messages']) == 0:
-            return jsonify({"message": "No emails found."})
+        emails = []
+        for message in response["messages"]:
+            email = service.users().messages().get(
+                userId="me",
+                id=message["id"],
+                fields="id,snippet,internalDate,payload/headers"
+            ).execute()
 
-        # Log the retrieved message ID
-        latest_email_id = response['messages'][0]['id']
-        print(f"Latest email ID: {latest_email_id}")
+            email_details = {
+                "id": email["id"],
+                "snippet": email.get("snippet"),
+                "date": email.get("internalDate"),
+                "subject": extract_email_header(email, "Subject"),
+                "from": extract_email_header(email, "From"),
+            }
+            emails.append(email_details)
 
-        # Retrieve details of the latest email
-        email = service.users().messages().get(
-            userId='me', 
-            id=latest_email_id,
-            fields="id,snippet,internalDate,payload/headers"
-        ).execute()
-
-        email_details = {
-            "id": email["id"],
-            "snippet": email.get("snippet"),
-            "date": email.get("internalDate"),
-            "subject": extract_email_header(email, "Subject"),
-            "from": extract_email_header(email, "From"),
-        }
-
-        # Log email details
-        print(f"Email details: {email_details}")
-
-        return jsonify({"email": email_details})
+        return jsonify({"emails": emails})
 
     except HttpError as error:
         print(f"HttpError occurred: {error}")
