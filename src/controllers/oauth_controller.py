@@ -1,7 +1,7 @@
 import os,requests
 from dotenv import load_dotenv
 from google_auth_oauthlib.flow import Flow
-from flask import session, jsonify, redirect, request, url_for
+from flask import session, jsonify,request
 
 load_dotenv()
 
@@ -61,4 +61,4 @@ def callback():
 
 def logout():
     session.clear()
-    return redirect(url_for("index"))
+    return jsonify({"message": "Logout successful!"})
